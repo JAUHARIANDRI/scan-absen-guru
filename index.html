@@ -1,0 +1,244 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scan Absensi Guru ASSIDKI</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 20px auto;
+      padding: 24px;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 5px 24px rgba(0,0,0,.08);
+    }
+
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-size: 23px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    .status {
+      padding: 14px;
+      margin: 18px 0;
+      background: #f1f5f9;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+
+    .result {
+      padding: 16px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 10px;
+      text-align: center;
+      display: none;
+    }
+
+    .nip {
+      font-size: 22px;
+      font-weight: bold;
+      margin: 8px 0;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .btn-start {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-stop {
+      background: #e2e8f0;
+      color: #1e293b;
+    }
+
+    .note {
+      color: #64748b;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>📷 Scan Absensi Guru</h1>
+    <p class="subtitle">ABSENSI SISWA ASSIDKI · SMP IT & SMA IT</p>
+
+    <div id="reader"></div>
+
+    <div id="status" class="status" role="status" aria-live="polite">
+      Tekan tombol Mulai Scan untuk mengaktifkan kamera.
+    </div>
+
+    <div id="result" class="result">
+      <div>QR Code berhasil dibaca</div>
+      <div id="hasilNip" class="nip"></div>
+      <div>Pastikan NIP sesuai dengan identitas guru.</div>
+    </div>
+
+    <button id="btnMulai" class="btn-start" type="button">
+      📷 Mulai Scan
+    </button>
+
+    <button id="btnBerhenti" class="btn-stop" type="button" disabled>
+      Hentikan Kamera
+    </button>
+
+    <p class="note">
+      Tahap ini hanya menguji kamera dan pembacaan QR.
+      Belum menyimpan absensi. Gunakan QR Code yang berisi
+      NIP guru, misalnya NIP-0001.
+    </p>
+  </main>
+
+  <script>
+    let pemindai = null;
+    let sedangScan = false;
+    let sedangMemproses = false;
+
+    const statusEl = document.getElementById("status");
+    const hasilEl = document.getElementById("result");
+    const nipEl = document.getElementById("hasilNip");
+    const btnMulai = document.getElementById("btnMulai");
+    const btnBerhenti = document.getElementById("btnBerhenti");
+
+    async function mulaiScan() {
+      if (sedangScan || sedangMemproses) return;
+
+      if (typeof Html5Qrcode === "undefined") {
+        statusEl.textContent =
+          "Library QR gagal dimuat. Periksa koneksi internet.";
+        return;
+      }
+
+      sedangMemproses = true;
+      btnMulai.disabled = true;
+      hasilEl.style.display = "none";
+      statusEl.textContent = "Meminta akses kamera...";
+
+      try {
+        pemindai = new Html5Qrcode("reader");
+
+        await pemindai.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 230, height: 230 }
+          },
+          async (teks) => {
+            if (sedangMemproses === false) return;
+
+            sedangMemproses = false;
+            nipEl.textContent = teks.trim();
+            hasilEl.style.display = "block";
+            statusEl.textContent =
+              "QR berhasil terbaca. Kamera dihentikan.";
+
+            await hentikanScan();
+
+            btnMulai.disabled = false;
+            btnMulai.textContent = "Scan Lagi";
+          }
+        );
+
+        sedangScan = true;
+        btnBerhenti.disabled = false;
+        statusEl.textContent =
+          "Kamera aktif. Arahkan ke QR Code guru.";
+
+      } catch (error) {
+        statusEl.textContent =
+          "Kamera gagal dibuka: " +
+          (error.message || String(error));
+
+        if (pemindai) {
+          try {
+            await pemindai.clear();
+          } catch (_) {}
+        }
+
+        pemindai = null;
+        sedangScan = false;
+        btnMulai.disabled = false;
+      } finally {
+        sedangMemproses = false;
+      }
+    }
+
+    async function hentikanScan() {
+      if (!pemindai) return;
+
+      const scanner = pemindai;
+      pemindai = null;
+      sedangScan = false;
+      btnBerhenti.disabled = true;
+
+      try {
+        await scanner.stop();
+      } catch (error) {
+        console.log("Kamera sudah berhenti:", error);
+      }
+
+      try {
+        await scanner.clear();
+      } catch (error) {
+        console.log("Pembersihan pemindai:", error);
+      }
+    }
+
+    btnMulai.addEventListener("click", mulaiScan);
+
+    btnBerhenti.addEventListener("click", async () => {
+      sedangMemproses = false;
+      await hentikanScan();
+      btnMulai.disabled = false;
+      statusEl.textContent = "Kamera dihentikan.";
+    });
+  </script>
+</body>
+</html>

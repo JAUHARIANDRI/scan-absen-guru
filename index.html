@@ -146,7 +146,7 @@
   const hasilEl = document.getElementById("result");
   const nipEl = document.getElementById("hasilNip");
   const btnMulai = document.getElementById("btnMulai");
-  const btnBerhenti = document.getElementById("btnBerhenti");
+  const btnBerhenti = document.getElementById("btnBerhenti");btn
 
   async function mulaiScan() {
     if (sedangScan || sedangMemproses) return;
@@ -251,6 +251,91 @@
       console.log("Pembersihan pemindai:", error);
     }
   }
+
+  // Meminta lokasi GPS lalu mengirim NIP ke tab Apps Script.
+function kirimNipKeAplikasi(nip) {
+  if (!window.opener || window.opener.closed) {
+    statusEl.textContent =
+      "Tab aplikasi absensi tidak ditemukan. " +
+      "Buka scanner melalui tombol Scan Absen Guru di aplikasi.";
+    sedangMemproses = false;
+    btnMulai.disabled = false;
+    return;
+  }
+
+  if (!navigator.geolocation) {
+    statusEl.textContent =
+      "Browser tidak mendukung pemeriksaan lokasi GPS.";
+    sedangMemproses = false;
+    btnMulai.disabled = false;
+    return;
+  }
+
+  statusEl.textContent = "Memeriksa izin dan lokasi GPS...";
+
+  navigator.geolocation.getCurrentPosition(
+    function(posisi) {
+      statusEl.textContent =
+        "Lokasi diperoleh. Mengirim data absensi ke aplikasi...";
+
+      window.opener.postMessage({
+        tipe: "PROSES_ABSEN_GURU_QR",
+        nip: nip,
+        latitude: posisi.coords.latitude,
+        longitude: posisi.coords.longitude
+      }, "*");
+    },
+    function(error) {
+      let pesan = "Lokasi GPS tidak dapat diperoleh.";
+
+      if (error.code === 1) {
+        pesan = "Izin lokasi ditolak. Izinkan akses lokasi pada browser.";
+      } else if (error.code === 2) {
+        pesan = "Lokasi tidak tersedia. Periksa GPS atau koneksi perangkat.";
+      } else if (error.code === 3) {
+        pesan = "Pemeriksaan lokasi melewati batas waktu. Coba kembali.";
+      }
+
+      statusEl.textContent = pesan;
+      sedangMemproses = false;
+      btnMulai.disabled = false;
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0
+    }
+  );
+}
+
+// Menerima balasan dari aplikasi Apps Script.
+window.addEventListener("message", function(event) {
+  if (event.source !== window.opener) return;
+
+  const data = event.data;
+
+  if (!data || data.tipe !== "HASIL_ABSEN_GURU_QR") return;
+
+  sedangMemproses = false;
+  btnMulai.disabled = false;
+  btnBerhenti.disabled = true;
+
+  if (data.berhasil) {
+    hasilEl.style.display = "block";
+
+    statusEl.textContent =
+      data.pesan +
+      " Nama: " + (data.nama || "-") +
+      ". Tindakan: " + (data.tindakan || "-") +
+      ". Jam: " + (data.jam || "-") +
+      ". Jarak: " + (data.jarak ?? "-") + " meter.";
+  } else {
+    statusEl.textContent =
+      "Absensi gagal: " + (data.pesan || "Kesalahan tidak diketahui.");
+  }
+
+  btnMulai.textContent = "Scan Lagi";
+});
 
   btnMulai.addEventListener("click", mulaiScan);
 

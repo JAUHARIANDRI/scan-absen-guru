@@ -9,9 +9,7 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -85,6 +83,11 @@
       margin-top: 10px;
     }
 
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
     .btn-start {
       background: #2563eb;
       color: white;
@@ -107,7 +110,7 @@
 <body>
   <main class="container">
     <h1>📷 Scan Absensi Guru</h1>
-    <p class="subtitle">ABSENSI SISWA ASSIDKI · SMP IT & SMA IT</p>
+    <p class="subtitle">ABSENSI SISWA ASSIDKI · SMP IT &amp; SMA IT</p>
 
     <div id="reader"></div>
 
@@ -118,7 +121,7 @@
     <div id="result" class="result">
       <div>QR Code berhasil dibaca</div>
       <div id="hasilNip" class="nip"></div>
-      <div>Pastikan NIP sesuai dengan identitas guru.</div>
+      <div>Menunggu hasil validasi absensi.</div>
     </div>
 
     <button id="btnMulai" class="btn-start" type="button">
@@ -130,13 +133,12 @@
     </button>
 
     <p class="note">
-      Tahap ini hanya menguji kamera dan pembacaan QR.
-      Belum menyimpan absensi. Gunakan QR Code yang berisi
-      NIP guru, misalnya NIP-0001.
+      Scan QR Code yang berisi NIP guru, misalnya NIP-0001.
+      Sistem akan meminta lokasi GPS dan mengirim data ke aplikasi
+      absensi untuk divalidasi.
     </p>
   </main>
 
-  
 <script>
   let pemindai = null;
   let sedangScan = false;
@@ -148,106 +150,103 @@
   const btnMulai = document.getElementById("btnMulai");
   const btnBerhenti = document.getElementById("btnBerhenti");
 
+  // Memulai kamera dan membaca QR Code.
   async function mulaiScan() {
-  if (sedangScan || sedangMemproses) return;
+    if (sedangScan || sedangMemproses) return;
 
-  if (typeof Html5Qrcode === "undefined") {
-    statusEl.textContent =
-      "Library QR belum dimuat. Muat ulang halaman dan periksa internet.";
-    return;
-  }
-
-  if (
-    !navigator.mediaDevices ||
-    !navigator.mediaDevices.getUserMedia
-  ) {
-    statusEl.textContent =
-      "Browser tidak mendukung akses kamera. Buka website melalui HTTPS menggunakan Chrome.";
-    return;
-  }
-
-  sedangMemproses = true;
-  btnMulai.disabled = true;
-  statusEl.textContent = "Memulai kamera...";
-  hasilEl.style.display = "none";
-
-  try {
-    if (!pemindai) {
-      pemindai = new Html5Qrcode("reader");
+    if (typeof Html5Qrcode === "undefined") {
+      statusEl.textContent =
+        "Library QR belum dimuat. Periksa koneksi internet lalu muat ulang.";
+      return;
     }
 
-    await pemindai.start(
-      { facingMode: "environment" },
-      {
-        fps: 10,
-        qrbox: { width: 230, height: 230 }
-      },
-      async (teks) => {
-        if (!sedangScan || sedangMemproses) return;
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+      statusEl.textContent =
+        "Browser tidak mendukung kamera. Buka website melalui HTTPS.";
+      return;
+    }
 
-        sedangScan = false;
-        sedangMemproses = true;
-        btnMulai.disabled = true;
+    sedangMemproses = true;
+    btnMulai.disabled = true;
+    btnBerhenti.disabled = true;
+    hasilEl.style.display = "none";
+    statusEl.textContent = "Memulai kamera...";
 
-        const nip = String(teks || "").trim();
-
-        nipEl.textContent = nip;
-        hasilEl.style.display = "block";
-        statusEl.textContent =
-          "QR terbaca. Menghentikan kamera...";
-
-        await hentikanScan();
-
-        btnMulai.textContent = "Scan Lagi";
-
-        // Kirim NIP ke aplikasi dan lanjutkan
-        // proses GPS serta validasi absensi.
-        if (typeof kirimNipKeAplikasi === "function") {
-          kirimNipKeAplikasi(nip);
-        } else {
-          statusEl.textContent =
-            "Fungsi kirimNipKeAplikasi belum tersedia.";
-          sedangMemproses = false;
-          btnMulai.disabled = false;
-        }
+    try {
+      if (!pemindai) {
+        pemindai = new Html5Qrcode("reader");
       }
-    );
 
-    sedangScan = true;
-    statusEl.textContent =
-      "Kamera aktif. Arahkan ke QR Code guru.";
+      await pemindai.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 230, height: 230 }
+        },
+        async function(teks) {
+          if (!sedangScan || sedangMemproses) return;
 
-    btnBerhenti.disabled = false;
+          sedangScan = false;
+          sedangMemproses = true;
+          btnMulai.disabled = true;
+          btnBerhenti.disabled = true;
 
-  } catch (error) {
-    console.error("Gagal memulai scan:", error);
+          const nip = String(teks || "").trim();
 
-    statusEl.textContent =
-      "Gagal membuka kamera: " +
-      (error.message || String(error));
+          nipEl.textContent = nip;
+          hasilEl.style.display = "block";
+          statusEl.textContent =
+            "QR terbaca. Menghentikan kamera...";
 
-    sedangScan = false;
+          await hentikanScan();
 
-    if (pemindai) {
-      try {
-        await pemindai.clear();
-      } catch (_) {}
+          btnMulai.textContent = "Scan Lagi";
 
-      pemindai = null;
+          kirimNipKeAplikasi(nip);
+        }
+      );
+
+      sedangScan = true;
+      sedangMemproses = false;
+      btnMulai.disabled = false;
+      btnBerhenti.disabled = false;
+
+      statusEl.textContent =
+        "Kamera aktif. Arahkan ke QR Code guru.";
+
+    } catch (error) {
+      console.error("Gagal memulai scan:", error);
+
+      statusEl.textContent =
+        "Gagal membuka kamera: " +
+        (error.message || String(error));
+
+      sedangScan = false;
+      sedangMemproses = false;
+
+      if (pemindai) {
+        try {
+          await pemindai.clear();
+        } catch (_) {}
+
+        pemindai = null;
+      }
+
+      btnMulai.disabled = false;
+      btnBerhenti.disabled = true;
     }
-
-    sedangMemproses = false;
-    btnMulai.disabled = false;
   }
-}
 
+  // Menghentikan kamera.
   async function hentikanScan() {
+    sedangScan = false;
+    btnBerhenti.disabled = true;
+
     if (!pemindai) return;
 
     const scanner = pemindai;
     pemindai = null;
-    sedangScan = false;
-    btnBerhenti.disabled = true;
 
     try {
       await scanner.stop();
@@ -262,102 +261,104 @@
     }
   }
 
-  // Meminta lokasi GPS lalu mengirim NIP ke tab Apps Script.
-function kirimNipKeAplikasi(nip) {
-  if (!window.opener || window.opener.closed) {
-    statusEl.textContent =
-      "Tab aplikasi absensi tidak ditemukan. " +
-      "Buka scanner melalui tombol Scan Absen Guru di aplikasi.";
-    sedangMemproses = false;
-    btnMulai.disabled = false;
-    return;
-  }
-
-  if (!navigator.geolocation) {
-    statusEl.textContent =
-      "Browser tidak mendukung pemeriksaan lokasi GPS.";
-    sedangMemproses = false;
-    btnMulai.disabled = false;
-    return;
-  }
-
-  statusEl.textContent = "Memeriksa izin dan lokasi GPS...";
-
-  navigator.geolocation.getCurrentPosition(
-    function(posisi) {
+  // Meminta GPS lalu mengirim NIP dan koordinat ke aplikasi.
+  function kirimNipKeAplikasi(nip) {
+    if (!window.opener || window.opener.closed) {
       statusEl.textContent =
-        "Lokasi diperoleh. Mengirim data absensi ke aplikasi...";
-
-      window.opener.postMessage({
-        tipe: "PROSES_ABSEN_GURU_QR",
-        nip: nip,
-        latitude: posisi.coords.latitude,
-        longitude: posisi.coords.longitude
-      }, "*");
-    },
-    function(error) {
-      let pesan = "Lokasi GPS tidak dapat diperoleh.";
-
-      if (error.code === 1) {
-        pesan = "Izin lokasi ditolak. Izinkan akses lokasi pada browser.";
-      } else if (error.code === 2) {
-        pesan = "Lokasi tidak tersedia. Periksa GPS atau koneksi perangkat.";
-      } else if (error.code === 3) {
-        pesan = "Pemeriksaan lokasi melewati batas waktu. Coba kembali.";
-      }
-
-      statusEl.textContent = pesan;
+        "Tab aplikasi absensi tidak ditemukan. " +
+        "Buka scanner melalui tombol Scan Absen Guru pada aplikasi.";
       sedangMemproses = false;
       btnMulai.disabled = false;
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 20000,
-      maximumAge: 0
+      return;
     }
-  );
-}
 
-// Menerima balasan dari aplikasi Apps Script.
-window.addEventListener("message", function(event) {
-  if (event.source !== window.opener) return;
+    if (!navigator.geolocation) {
+      statusEl.textContent =
+        "Browser tidak mendukung pemeriksaan lokasi GPS.";
+      sedangMemproses = false;
+      btnMulai.disabled = false;
+      return;
+    }
 
-  const data = event.data;
+    statusEl.textContent = "Memeriksa izin dan lokasi GPS...";
 
-  if (!data || data.tipe !== "HASIL_ABSEN_GURU_QR") return;
+    navigator.geolocation.getCurrentPosition(
+      function(posisi) {
+        statusEl.textContent =
+          "Lokasi diperoleh. Mengirim data absensi...";
 
-  sedangMemproses = false;
-  btnMulai.disabled = false;
-  btnBerhenti.disabled = true;
+        window.opener.postMessage({
+          tipe: "PROSES_ABSEN_GURU_QR",
+          nip: nip,
+          latitude: posisi.coords.latitude,
+          longitude: posisi.coords.longitude
+        }, "*");
+      },
+      function(error) {
+        let pesan = "Lokasi GPS tidak dapat diperoleh.";
 
-  if (data.berhasil) {
-    hasilEl.style.display = "block";
+        if (error.code === 1) {
+          pesan = "Izin lokasi ditolak. Izinkan akses lokasi pada browser.";
+        } else if (error.code === 2) {
+          pesan = "Lokasi tidak tersedia. Periksa GPS atau koneksi.";
+        } else if (error.code === 3) {
+          pesan = "Pemeriksaan lokasi melewati batas waktu. Coba kembali.";
+        }
 
-    statusEl.textContent =
-      data.pesan +
-      " Nama: " + (data.nama || "-") +
-      ". Tindakan: " + (data.tindakan || "-") +
-      ". Jam: " + (data.jam || "-") +
-      ". Jarak: " + (data.jarak ?? "-") + " meter.";
-  } else {
-    statusEl.textContent =
-      "Absensi gagal: " + (data.pesan || "Kesalahan tidak diketahui.");
+        statusEl.textContent = pesan;
+        sedangMemproses = false;
+        btnMulai.disabled = false;
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+      }
+    );
   }
 
-  btnMulai.textContent = "Scan Lagi";
-});
+  // Menerima hasil validasi dari aplikasi Apps Script.
+  window.addEventListener("message", function(event) {
+    if (event.source !== window.opener) return;
+
+    const data = event.data;
+
+    if (!data || data.tipe !== "HASIL_ABSEN_GURU_QR") return;
+
+    sedangMemproses = false;
+    btnMulai.disabled = false;
+    btnBerhenti.disabled = true;
+
+    if (data.berhasil) {
+      hasilEl.style.display = "block";
+
+      statusEl.textContent =
+        (data.pesan || "Absensi berhasil.") +
+        " Nama: " + (data.nama || "-") +
+        ". Tindakan: " + (data.tindakan || "-") +
+        ". Jam: " + (data.jam || "-") +
+        ". Jarak: " + (data.jarak ?? "-") + " meter.";
+    } else {
+      statusEl.textContent =
+        "Absensi gagal: " +
+        (data.pesan || "Kesalahan tidak diketahui.");
+    }
+
+    btnMulai.textContent = "Scan Lagi";
+  });
 
   btnMulai.addEventListener("click", mulaiScan);
 
-  btnBerhenti.addEventListener("click", async () => {
-    sedangMemproses = false;
+  btnBerhenti.addEventListener("click", async function() {
+    if (sedangMemproses) return;
+
     await hentikanScan();
 
+    sedangMemproses = false;
     btnMulai.disabled = false;
+    btnMulai.textContent = "Mulai Scan";
     statusEl.textContent = "Kamera dihentikan.";
   });
 </script>
-
 </body>
 </html>
-<!-- Pemicu publikasi GitHub Pages -->

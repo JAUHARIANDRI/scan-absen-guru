@@ -332,12 +332,16 @@
     if (data.berhasil) {
       hasilEl.style.display = "block";
 
-      statusEl.textContent =
+      const pesanBerhasil =
         (data.pesan || "Absensi berhasil.") +
         " Nama: " + (data.nama || "-") +
         ". Tindakan: " + (data.tindakan || "-") +
         ". Jam: " + (data.jam || "-") +
         ". Jarak: " + (data.jarak ?? "-") + " meter.";
+
+      statusEl.textContent = pesanBerhasil;
+      window.alert(pesanBerhasil);
+      window.close();
     } else {
       statusEl.textContent =
         "Absensi gagal: " +
